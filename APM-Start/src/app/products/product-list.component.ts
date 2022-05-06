@@ -1,9 +1,15 @@
 import { Component, ChangeDetectionStrategy } from '@angular/core';
+import {
+  catchError,
+  combineLatest,
+  EMPTY,
+  map,
+  Observable,
+  startWith,
+  Subject,
+} from 'rxjs';
 
-import { catchError, EMPTY, filter, map, Observable } from 'rxjs';
-import { ProductCategory } from '../product-categories/product-category';
 import { ProductCategoryService } from '../product-categories/product-category.service';
-
 import { Product } from './product';
 import { ProductService } from './product.service';
 
@@ -15,24 +21,27 @@ import { ProductService } from './product.service';
 export class ProductListComponent {
   pageTitle = 'Product List';
   errorMessage = '';
-  selectedCategoryId: number = 1;
+  initialValue: number = 0;
 
-  products$: Observable<Product[]> | undefined =
-    this.productService.productsWithCategory$.pipe(
-      catchError((x) => {
-        this.errorMessage = x;
-        return EMPTY;
-      })
-    );
+  private categorySelectedIdAction = new Subject<number>();
+  categorySelectedAction$ = this.categorySelectedIdAction
+    .asObservable()
+    .pipe(startWith(this.initialValue));
 
-  productsSimpleFilter$ = this.productService.productsWithCategory$.pipe(
-    map((x) =>
-      x.filter((y) =>
-        this.selectedCategoryId
-          ? y.categoryId === this.selectedCategoryId
-          : true
-      )
-    )
+  products$: Observable<Product[]> | undefined = combineLatest([
+    this.productService.productsWithCategory$,
+    this.categorySelectedAction$,
+  ]).pipe(
+    map(([products, categorySelectedId]) => {
+      if (!categorySelectedId || categorySelectedId < 0) return products;
+      return products.filter(
+        (product) => categorySelectedId === product.categoryId
+      );
+    }),
+    catchError((err) => {
+      this.errorMessage = err;
+      return EMPTY;
+    })
   );
 
   categories$ = this.productCategoryService.productCategories$;
@@ -47,6 +56,6 @@ export class ProductListComponent {
   }
 
   onSelected(categoryId: string): void {
-    this.selectedCategoryId = +categoryId;
+    this.categorySelectedIdAction.next(+categoryId);
   }
 }

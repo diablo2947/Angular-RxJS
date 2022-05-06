@@ -2,10 +2,12 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 
 import {
+  BehaviorSubject,
   catchError,
   combineLatest,
   map,
   Observable,
+  Subject,
   tap,
   throwError,
 } from 'rxjs';
@@ -19,6 +21,14 @@ import { ProductCategoryService } from '../product-categories/product-category.s
 export class ProductService {
   private productsUrl = 'api/products';
   private suppliersUrl = 'api/suppliers';
+
+  private productSelectedAction: BehaviorSubject<number> =
+    new BehaviorSubject<number>(1);
+  productSelectedAction$: Observable<number> =
+    this.productSelectedAction.asObservable();
+
+  private productInsertedAction: Subject<Product> = new Subject<Product>();
+  productInsertedAction$ = this.productInsertedAction.asObservable();
 
   constructor(
     private http: HttpClient,
@@ -47,6 +57,22 @@ export class ProductService {
     )
   );
 
+  selectedProduct$ = combineLatest([
+    this.productsWithCategory$,
+    this.productSelectedAction$,
+  ]).pipe(
+    map(([products, selectedProductId]) =>
+      products.find((product) => product.id === selectedProductId)
+    ),
+    tap((product) =>
+      console.log(console.log('Product selected:' + JSON.stringify(product)))
+    )
+  );
+
+  changeProduct(productSelectionId: number): void {
+    this.productSelectedAction.next(productSelectionId);
+  }
+
   private fakeProduct(): Product {
     return {
       id: 42,
@@ -58,6 +84,10 @@ export class ProductService {
       // category: 'Toolbox',
       quantityInStock: 30,
     };
+  }
+
+  addProduct(): void {
+    this.productInsertedAction.next(this.fakeProduct());
   }
 
   private handleError(err: HttpErrorResponse): Observable<never> {
